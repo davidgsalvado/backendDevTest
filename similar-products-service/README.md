@@ -132,6 +132,9 @@ docker-compose run --rm k6 run scripts/test.js
 
 View results at: http://localhost:3000/d/Le2Ku9NMk/k6-performance-test
 
+> **Note**: k6 will report ~600 interrupted iterations. This is expected - the `normal`, `notFound` and `error`scenarios are configured with `gracefulStop: 0s, which means
+k6 forcefully terminates all in-flight iterations (200 VUs x 3 scenarios = 600) the instant each scenario's duration ends. It does not indicate a service error.
+
 ## Configuration
 
 All parameters are tunable in `application.yml`:
