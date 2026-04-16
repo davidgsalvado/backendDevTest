@@ -1,0 +1,77 @@
+openapi: 3.0.0
+info:
+  title: Existing APIs
+  description: This document describes the existing APIs used in the Similar Products Service.
+  version: 1.0.0
+paths:
+  /product/{id}/similarids:
+    get:
+      summary: Get Similar Product IDs
+      description: Returns a list of product IDs that are similar to the specified product ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the product for which similar IDs are requested.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of similar product IDs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '404':
+          description: Product not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /product/{id}:
+    get:
+      summary: Get Product Details
+      description: Returns the details of the specified product ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the product to retrieve.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '404':
+          description: Product not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    ProductResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: integer

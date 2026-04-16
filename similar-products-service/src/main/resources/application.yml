@@ -1,0 +1,32 @@
+server:
+  port: 5000
+  tomcat:
+    threads:
+      max: 500
+      min-spare: 50
+
+spring:
+  application:
+    name: similar-products-service
+  webflux:
+    thread-name-prefix: webflux-
+  task:
+    execution:
+      pool:
+        core-size: 100
+        max-size: 200
+        queue-capacity: 500
+      thread-name-prefix: task-
+
+logging:
+  level:
+    root: INFO
+    com.ams.similarproducts: INFO
+
+# Configuration variables
+
+external:
+  products:
+    base-url: http://localhost:3001/product
+  config:
+    max-timeout: 120 # seconds  # Aumentado para manejar productos lentos
