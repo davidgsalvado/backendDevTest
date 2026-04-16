@@ -27,8 +27,9 @@ public class GetSimilarProductsUseCaseImpl implements GetSimilarProductsUseCase 
         final Mono<List<String>> similarIds = this.getSimilarProductsPort.getSimilarProductsIds(productId);
 
         return similarIds.flatMapMany(Flux::fromIterable)
+                .distinct()
                 .flatMap(this.fetchProductsPort::fetchProductById, 50)
-                .onErrorContinue((throwable, o) -> log.warn("[GetSimilarProductsUseCaseImpl] Skipping product due to error: {}", throwable.getMessage()))  // Continúa si falla
+                .onErrorContinue((throwable, o) -> log.warn("[GetSimilarProductsUseCaseImpl] Skipping product due to error: {}", throwable.getMessage()))
                 .collectList();
     }
 }

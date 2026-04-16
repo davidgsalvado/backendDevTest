@@ -1,6 +1,7 @@
 package com.ams.similarproducts.infrastructure.api;
 
 import com.ams.similarproducts.domain.config.ExternalProps;
+import com.ams.similarproducts.domain.exception.NotFoundException;
 import com.ams.similarproducts.domain.external.GetSimilarProductsPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,7 @@ public class GetSimilarProductsApiAdapter implements GetSimilarProductsPort {
                 .timeout(Duration.ofSeconds(this.externalProps.getMaxTimeout()))
                 .onErrorResume(WebClientResponseException.class, e ->
                         e.getStatusCode() == HttpStatus.NOT_FOUND
-                                ? Mono.just(List.of())
+                                ? Mono.error(new NotFoundException("Product not found"))
                                 : Mono.error(e)
                 );
     }
