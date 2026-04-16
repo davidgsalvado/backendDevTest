@@ -1,9 +1,5 @@
 server:
   port: 5000
-  tomcat:
-    threads:
-      max: 500
-      min-spare: 50
 
 spring:
   application:
@@ -23,10 +19,15 @@ logging:
     root: INFO
     com.ams.similarproducts: INFO
 
-# Configuration variables
-
+# External API configuration
 external:
   products:
     base-url: http://localhost:3001/product
   config:
-    max-timeout: 120 # seconds  # Aumentado para manejar productos lentos
+    max-timeout: 120 # seconds - high to allow cache warming to complete for slow products
+
+# Cache warming configuration
+cache:
+  warming:
+    interval-ms: 25000     # refresh every 25s (before 30s TTL expires)
+    initial-delay-ms: 0    # start warming immediately on boot

@@ -7,6 +7,9 @@ import com.ams.similarproducts.domain.external.FetchProductsPort;
 import com.ams.similarproducts.infrastructure.api.dto.ProductDetailDto;
 import com.ams.similarproducts.infrastructure.api.mapper.ProductApiMapper;
 import com.ams.similarproducts.infrastructure.cache.ReactiveProductCache;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -15,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
 
 import java.time.Duration;
 
@@ -30,8 +32,10 @@ public class FetchProductsApiAdapter implements FetchProductsPort {
     private final ProductApiMapper productApiMapper;
 
     private final ExternalProps externalProps;
-    
+
     private final ReactiveProductCache reactiveProductCache;
+
+    private final CircuitBreaker productCircuitBreaker;
 
     @Override
     public Mono<Product> fetchProductById(String productId) {
@@ -42,14 +46,17 @@ public class FetchProductsApiAdapter implements FetchProductsPort {
                 .timeout(Duration.ofSeconds(this.externalProps.getMaxTimeout()))
                 .doOnNext(dto -> log.debug("[FetchProductsApiAdapter::fetchProductById] Product retrieved from API: {}", dto))
                 .map(this.productApiMapper::toDomain)
-                .retryWhen(Retry.backoff(3, Duration.ofSeconds(5))  // 3 reintentos con backoff (5s, 10s, 20s) para todos
-                    .filter(throwable -> throwable instanceof java.util.concurrent.TimeoutException))  // Solo retry en timeout
                 .doOnError(throwable -> log.error("[FetchProductsApiAdapter::fetchProductById] Error fetching product {}: {}", productId, throwable.getMessage()))
                 .onErrorMap(WebClientResponseException.class, e ->
                         e.getStatusCode() == HttpStatus.NOT_FOUND
                                 ? new NotFoundException("Product not found")
                                 : e
-                );
+                )
+                .transformDeferred(CircuitBreakerOperator.of(productCircuitBreaker))
+                .onErrorResume(CallNotPermittedException.class, e -> {
+                    log.warn("[FetchProductsApiAdapter] Circuit OPEN for product {} - serving from cache if available", productId);
+                    return Mono.empty();
+                });
 
         return this.reactiveProductCache.cache(productId, apiCall);
     }
