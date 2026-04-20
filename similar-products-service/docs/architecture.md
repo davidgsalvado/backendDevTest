@@ -179,6 +179,34 @@ All tuning parameters are externalized in `application.yml`:
 | `external.config.max-timeout` | 120s | Max time to wait for upstream (used by cache warming) |
 | `cache.warming.interval-ms` | 25000 | How often to refresh the cache (should be < TTL) |
 | `cache.warming.initial-delay-ms` | 0 | Delay before first warm-up (0 = immediate) |
-| `ReactiveProductCache.TTL_MILLIS` | 30000 | Cache entry time-to-live |
-| Circuit Breaker `slowCallDurationThreshold` | 5s | Calls slower than this count as "slow" |
-| Circuit Breaker `waitDurationInOpenState` | 30s | Time before retrying after circuit opens |
+
+## CAP Theorem Analysis
+
+The [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) states that a distributed system can only guarantee two of three properties simultaneously: **Consistency**, **Availability**, and **Partition Tolerance**.
+
+> **Note**: CAP in its strict definition applies to distributed systems with replicated state. This service has no database or replicas, but the CAP tradeoff manifests in the relationship between the service and its upstream dependency — when the upstream becomes unreachable (a network partition), the service must choose between returning an error (consistency) or serving stale cached data (availability).
+
+### This service is AP (Availability + Partition Tolerance)
+
+**Consistency is explicitly relaxed** in favor of always returning a response:
+
+| Mechanism | How it relaxes consistency |
+|---|---|
+| **Stale-While-Revalidate** | Returns expired cache entries immediately. Data can be up to ~60s stale (one full TTL cycle + SWR window) |
+| **Cache Warming** | Pre-fetches every 25s with a 30s TTL — there is always a window where cached data doesn't reflect the latest upstream state |
+| **Circuit Breaker → `Mono.empty()`** | When upstream is down, stale cached data is served instead of failing. If no cache exists, the product is silently skipped |
+| **`onErrorContinue`** | Returns partial results when individual product fetches fail — the client receives an incomplete but usable response |
+
+### Why this is the right tradeoff
+
+1. **The domain tolerates eventual consistency**: product catalog data (name, price, availability) is not transactional. A price being 30 seconds stale has negligible business impact — this is not a financial ledger or inventory reservation system.
+
+2. **Unavailability is more costly than inconsistency**: a `503 Service Unavailable` loses the user entirely. A slightly outdated product recommendation still provides value and keeps the user engaged.
+
+3. **Industry-standard for read-heavy aggregators**: CDNs, API gateways, and BFF (Backend-for-Frontend) services universally adopt AP with SWR caching. This service follows the same well-proven pattern.
+
+### Known limitations of this choice
+
+- **No cache eviction policy**: entries in the `ConcurrentHashMap` are never removed, only overwritten on refresh. For a growing product catalog this could lead to unbounded memory growth. A bounded cache (e.g., Caffeine with `maximumSize`) would mitigate this.
+- **Staleness is unbounded during extended outages**: if the upstream is down for hours and the circuit breaker stays open, the cache serves increasingly outdated data with no mechanism to signal staleness to the client (e.g., via `Cache-Control` or `Age` headers).
+- **Silent data omission**: when a product has no cache entry and the circuit is open, it is silently dropped from results. The client has no way to know the response is incomplete.
