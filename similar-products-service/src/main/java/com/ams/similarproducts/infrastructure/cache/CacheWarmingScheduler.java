@@ -43,7 +43,7 @@ public class CacheWarmingScheduler {
     private final ExternalProps externalProps;
 
     /** Seed product IDs from which to discover similar products to warm */
-    private static final Set<String> SEED_PRODUCT_IDS = Set.of("1", "2", "3", "4", "5");
+    private static final Set<String> SEED_PRODUCT_IDS = Set.of("1", "2", "3");
 
     @Scheduled(fixedDelayString = "${cache.warming.interval-ms:25000}", initialDelayString = "${cache.warming.initial-delay-ms:0}")
     public void warmCache() {
